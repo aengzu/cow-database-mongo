@@ -6,7 +6,6 @@ class MetaData(BaseModel):
     birth_date: Optional[str] = "Unknown"
     breed: Optional[str] = "Unknown"
     weight: Optional[int] = 0
-    timestamp: Optional[str] = "Unknown"
 
 class DataField(BaseModel):
     type: Optional[str] = "Unknown"
@@ -17,3 +16,6 @@ class CowData(BaseModel):
     barcode: str
     meta: MetaData
     data: List[DataField]
+
+class TextData(BaseModel):
+    content: str

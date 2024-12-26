@@ -1,15 +1,12 @@
 import requests
 import uvicorn
-from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi import FastAPI, HTTPException, UploadFile, Form
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
-import base64
-from gridfs import GridFS
 from bson import ObjectId
 from io import BytesIO
-
 from database import collection, fs
-from models import CowData
+from models import CowData, MetaData, TextData
 
 # FastAPI 앱 생성
 app = FastAPI(
@@ -40,7 +37,14 @@ async def retrieve_cow_data(barcode: str):
     data = collection.find_one({"barcode": barcode})
     if not data:
         raise HTTPException(status_code=404, detail="Data not found.")
-    return convert_object_id(data)
+
+    # 디버깅: MongoDB 데이터 출력
+    print("Retrieved data from MongoDB:", data)
+
+    data = convert_object_id(data)
+    data.setdefault("meta", {"message": "No metadata available"})
+    return data
+
 
 @app.get("/test_mongo")
 async def test_mongo():
@@ -88,47 +92,62 @@ async def retrieve_image_data(barcode: str):
         print(f"Unexpected error: {e}")
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
-
 @app.post("/upload_image_gridfs")
-async def upload_image_to_gridfs(barcode: str, image_file: UploadFile):
+async def upload_image_to_gridfs(
+    barcode: str,
+    cow_id: str = Form(None),  # 선택적으로 처리
+    birth_date: str = Form(None),
+    breed: str = Form(None),
+    weight: int = Form(None),
+    image_file: UploadFile = None
+):
     # 중복 확인
     if collection.find_one({"barcode": barcode}):
         raise HTTPException(status_code=400, detail="Barcode already exists.")
 
     # 이미지 저장
-    try:
-        file_id = fs.put(await image_file.read(), filename=image_file.filename)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to store image: {str(e)}")
+    file_id = None
+    if image_file:
+        try:
+            file_id = fs.put(await image_file.read(), filename=image_file.filename)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to store image: {str(e)}")
+
+    # 현재 시각으로 타임스탬프 추가
+    from datetime import datetime
+    timestamp = datetime.now().isoformat()
 
     # 메타데이터와 파일 ID 저장
     document = {
         "barcode": barcode,
-        "data": [{
-            "type": "gridfs",
-            "file_id": str(file_id),
-            "description": f"Image for barcode {barcode}"
-        }]
+        "meta": {
+            "cow_id": cow_id or "Unknown",  # 기본값 처리
+            "birth_date": birth_date or "Unknown",
+            "breed": breed or "Unknown",
+            "weight": weight or 0,
+            "timestamp": timestamp,
+        },
+        "data": [  # 이미지 데이터 추가
+            {
+                "type": "gridfs",
+                "file_id": str(file_id),
+                "description": f"Image for barcode {barcode}"
+            }
+        ] if file_id else []
     }
     collection.insert_one(document)
-    return {"message": "Image uploaded successfully", "barcode": barcode, "file_id": str(file_id)}
+    return {"message": "Data inserted successfully", "barcode": barcode, "file_id": str(file_id) if file_id else None}
 
 
-@app.get("/stream_image/{file_id}")
-async def stream_image(file_id: str):
+@app.post("/insert_json")
+async def insert_json(data: dict):
+    """MongoDB에 JSON 데이터를 삽입."""
     try:
-        # 디버깅: file_id 확인
-        print(f"Fetching file with ID: {file_id}")
-
-        gridfs_file = fs.get(ObjectId(file_id))
-
-        # 디버깅: 파일 정보 출력
-        print(f"File retrieved: {gridfs_file}")
-
-        return StreamingResponse(BytesIO(gridfs_file.read()), media_type="image/png")
+        result = collection.insert_one(data)
+        inserted_document = collection.find_one({"_id": result.inserted_id})
+        return {"message": "Data inserted successfully", "document": convert_object_id(inserted_document)}
     except Exception as e:
-        print(f"Error retrieving file: {str(e)}")  # 디버깅용 로그
-        raise HTTPException(status_code=404, detail=f"Image not found: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to insert data: {str(e)}")
 
 
 if __name__ == '__main__':
