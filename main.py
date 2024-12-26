@@ -92,6 +92,19 @@ async def retrieve_image_data(barcode: str):
         print(f"Unexpected error: {e}")
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
+
+@app.delete("/delete/{barcode}")
+async def delete_cow_data(barcode: str):
+    """바코드 ID로 데이터를 삭제."""
+    try:
+        result = collection.delete_one({"barcode": barcode})
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail=f"No data found with barcode {barcode}")
+        return {"message": f"Data with barcode {barcode} deleted successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete data: {str(e)}")
+
+
 @app.post("/upload_image_gridfs")
 async def upload_image_to_gridfs(
     barcode: str,
@@ -141,8 +154,9 @@ async def upload_image_to_gridfs(
 
 @app.post("/insert_json")
 async def insert_json(data: dict):
-    """MongoDB에 JSON 데이터를 삽입."""
+    """JSON 데이터를 파싱하여 MongoDB에 저장"""
     try:
+        # 데이터를 MongoDB에 삽입
         result = collection.insert_one(data)
         inserted_document = collection.find_one({"_id": result.inserted_id})
         return {"message": "Data inserted successfully", "document": convert_object_id(inserted_document)}

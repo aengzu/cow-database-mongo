@@ -8,7 +8,7 @@ FASTAPI_URL = "http://127.0.0.1:8000"
 st.title("🐂 DashBoard")
 
 # 탭 분리
-tab1, tab2, tab3, tab4 = st.tabs(["📊 데이터 요약", "🔍 데이터 조회", "➕ 데이터 삽입", "🔤 텍스트로 데이터 삽입"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 데이터 요약", "🔍 데이터 조회", "➕ 데이터 삽입", "🔤 텍스트로 데이터 삽입", "🗑 데이터 삭제"])
 # 데이터 요약 탭
 with tab1:
     st.header("데이터 요약")
@@ -30,7 +30,7 @@ with tab1:
             if "data" in df.columns:
                 df = df.drop(columns=["data"])  # data 필드는 필요에 따라 처리
 
-            st.markdown("### 전체 데이터 테이블")
+            st.markdown("### 전체 데이터 테이블(meta)")
             st.dataframe(df, use_container_width=True)
         else:
             st.warning("표시할 데이터가 없습니다.")
@@ -117,33 +117,74 @@ with tab3:
 
 
 # 텍스트 데이터 삽입 탭
+# 텍스트 데이터 삽입 탭
 with tab4:
-    st.header("새로운 텍스트 데이터 삽입")
+    st.header("새로운 JSON 데이터 삽입")
 
-    text_content = st.text_area("텍스트 입력", placeholder='''{
-    "barcode": "123456789",
-    "meta": {
-        "timestamp": "2024-12-26T12:00:00Z",
-        "cow_id": "COW001",
-        "birth_date": "2020-05-15",
-        "breed": "Holstein",
-        "weight": 450
-    },
-    "data": []
-}.''')
+    # JSON 입력 필드
+    text_content = st.text_area(
+        "JSON 입력",
+        placeholder='''{
+            "barcode": "123456789",
+            "meta": {
+                "timestamp": "2024-12-26T12:00:00Z",
+                "cow_id": "COW001",
+                "birth_date": "2020-05-15",
+                "breed": "Holstein",
+                "weight": 450
+            },
+            "data": []
+        }'''
+    )
 
-    if st.button("텍스트 삽입", key="text_insert_button"):
+    if st.button("JSON 데이터 삽입", key="json_insert_button"):
         if text_content:
             try:
+                # JSON 파싱
+                json_data = eval(text_content)  # 또는 json.loads(text_content)
+
+                # FastAPI로 전송
                 response = requests.post(
                     f"{FASTAPI_URL}/insert_json",
-                    json={"content": text_content},  # JSON body로 전달
+                    json=json_data,  # JSON 데이터를 직접 전달
                 )
                 if response.status_code == 200:
-                    st.success("텍스트 데이터 삽입 완료!")
+                    st.success("JSON 데이터 삽입 완료!")
                 else:
                     st.error(f"삽입 실패: {response.status_code} - {response.text}")
             except Exception as e:
-                st.error(f"삽입 중 오류 발생: {str(e)}")
+                st.error(f"JSON 데이터 처리 중 오류 발생: {str(e)}")
         else:
-            st.warning("텍스트를 입력하세요.")
+            st.warning("JSON 데이터를 입력하세요.")
+
+
+# 데이터 삭제 탭
+with tab5:
+    st.header("데이터 삭제")
+
+    # 바코드 선택 또는 입력
+    col1, col2 = st.columns(2)
+    with col1:
+        if response.status_code == 200 and data:
+            barcodes = [item["barcode"] for item in data]
+            selected_barcode = st.selectbox("바코드 선택", [""] + barcodes, key="delete_selectbox")
+        else:
+            selected_barcode = None
+
+    with col2:
+        input_barcode = st.text_input("또는 바코드 직접 입력", key="delete_text_input")
+
+    barcode_to_delete = input_barcode or selected_barcode
+
+    if barcode_to_delete:
+        if st.button("데이터 삭제", key="delete_button"):
+            try:
+                delete_response = requests.delete(f"{FASTAPI_URL}/delete/{barcode_to_delete}")
+                if delete_response.status_code == 200:
+                    st.success(f"바코드 {barcode_to_delete} 데이터 삭제 성공")
+                else:
+                    st.error(f"삭제 실패: {delete_response.status_code} - {delete_response.text}")
+            except Exception as e:
+                st.error(f"삭제 중 오류 발생: {str(e)}")
+    else:
+        st.info("삭제할 바코드를 선택하거나 입력하세요.")
