@@ -122,7 +122,6 @@ with tab3:
 
 
 # 텍스트 데이터 삽입 탭
-# 텍스트 데이터 삽입 탭
 with tab4:
     st.header("새로운 JSON 데이터 삽입")
 

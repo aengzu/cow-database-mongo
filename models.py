@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from typing import List, Optional
 
+# todo : 데이터 형식 알게 되면 형식 변경
 class MetaData(BaseModel):
     cow_id: Optional[str] = "Unknown"
     birth_date: Optional[str] = "Unknown"
