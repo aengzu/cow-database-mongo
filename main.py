@@ -24,6 +24,7 @@ def convert_object_id(data):
         return str(data)
     return data
 
+
 @app.get("/retrieve_all")
 async def retrieve_all_cow_data():
     print('Retrieving all data from MongoDB...')

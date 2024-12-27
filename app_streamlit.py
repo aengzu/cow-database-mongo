@@ -25,8 +25,13 @@ with tab1:
             if "_id" in df.columns:
                 df = df.drop(columns=["_id"])  # _id 필드 제거
             if "meta" in df.columns:
-                meta_df = pd.json_normalize(df["meta"])  # meta 필드를 분리
-                df = pd.concat([df.drop(columns=["meta"]), meta_df], axis=1)
+                # meta 필드의 데이터를 확인하여 비정상적인 항목은 NULL로 처리
+                df["meta"] = df["meta"].apply(lambda x: x if isinstance(x, dict) else None)
+                try:
+                    meta_df = pd.json_normalize(df["meta"])  # meta 필드를 분리
+                    df = pd.concat([df.drop(columns=["meta"]), meta_df], axis=1)
+                except Exception as e:
+                    st.error(f"Meta 필드 처리 중 오류 발생: {str(e)}")
             if "data" in df.columns:
                 df = df.drop(columns=["data"])  # data 필드는 필요에 따라 처리
 
